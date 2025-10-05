@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Settings</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  <style>
+    .settings { max-width:720px;margin:28px auto;background:var(--panel);padding:20px;border-radius:12px; }
+    .avatar-preview { width:72px;height:72px;border-radius:12px;object-fit:cover;margin-bottom:10px; }
+    label{display:block;margin-top:10px;color:var(--text)}
+    .btn { background:var(--accent); color:white; padding:8px 12px;border-radius:8px;border:0;cursor:pointer;margin-top:12px }
+  </style>
+</head>
+<body>
+  <div class="settings">
+    <h2>Profile Settings</h2>
+    <p>Change your username or upload a new avatar.</p>
+
+    <div>
+      <img src="{{ me['avatar_url'] or url_for('static', path='icons/default-avatar.png') }}" alt="avatar" class="avatar-preview">
+    </div>
+
+    <form action="{{ url_for('update_profile') }}" method="post" enctype="multipart/form-data">
+      <label>Username
+        <input type="text" name="username" value="{{ me['username'] }}" />
+      </label>
+
+      <label>Avatar (png/jpg/gif/webp)
+        <input type="file" name="avatar" accept="image/*" />
+      </label>
+
+      <button class="btn" type="submit">Save</button>
+      <a class="btn" href="{{ url_for('index') }}" style="background:#999;margin-left:8px;text-decoration:none;display:inline-block">Back</a>
+    </form>
+  </div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon.png') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>Search results</h2>
+        </div>
+
+        {% if results %}
+            <ul>
+                {% for result in results %}
+                    <li><a href="{{ url_for('profile', username=result[2]) }}">{{ result[2] }}</a></li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Nothing was found for your query.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

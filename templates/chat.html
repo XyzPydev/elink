@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat — {{ other['username'] }}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+
+  <style>
+    /* Local styles: emoji, buttons, lightbox, file-picker, profile panel */
+    .icon-btn { background:transparent; border:0; padding:6px; margin-right:6px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+    .icon-btn img { width:20px; height:20px; opacity:0.95; display:block; }
+
+    .emoji-panel { position:fixed; bottom:86px; left:360px; background:var(--panel); padding:8px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); z-index:2000; display:flex; gap:6px; flex-wrap:wrap; }
+    .emoji-panel button { background:transparent; border:0; padding:6px; font-size:20px; cursor:pointer; color:var(--text); }
+    @media (max-width:900px){ .emoji-panel{ left:14px; bottom:120px; } }
+
+    /* file picker styling */
+    .file-input-wrapper { display:inline-flex; align-items:center; gap:8px; }
+    .file-label {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:8px; background:rgba(255,255,255,0.03); cursor:pointer;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .file-label:hover { background:rgba(255,255,255,0.04); }
+    .file-name { font-size:13px; color:var(--muted); margin-left:6px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* profile panel (slide-in) */
+    #profile_panel {
+      position:fixed; left:12px; top:80px; width:280px; background:var(--panel); border-radius:12px; box-shadow:0 8px 40px rgba(0,0,0,0.6);
+      padding:14px; z-index:2500; display:none;
+    }
+    #profile_panel img.avatar-lg { width:80px; height:80px; object-fit:cover; border-radius:12px; display:block; margin-bottom:8px; }
+    #profile_panel .username { font-weight:700; font-size:16px; }
+    #profile_panel .status { font-size:13px; color:var(--muted); margin-bottom:8px; }
+    #profile_panel .action-btn { display:inline-block; padding:8px 10px; border-radius:8px; background:var(--accent); color:#fff; text-decoration:none; margin-right:8px; }
+
+    /* lightbox */
+    #lightbox{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); z-index:3000; }
+    #lightbox img{ max-width:90%; max-height:90%; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.8); }
+    #lightbox .close{ position:absolute; top:18px; right:18px; color:#fff; font-size:28px; cursor:pointer; background:rgba(0,0,0,0.3); border-radius:6px; padding:6px 10px; }
+
+    /* chat-list avatar */
+    .chat-item .avatar-xs { width:36px; height:36px; border-radius:8px; object-fit:cover; margin-right:10px; display:inline-block; vertical-align:middle; }
+
+    /* message media previews */
+    .msg-content img.chat-image { max-width:60%; border-radius:8px; display:block; margin-bottom:6px; cursor:pointer; }
+    .msg-content audio { display:block; margin-bottom:6px; width:100%; max-width:60%; }
+
+    @media (max-width:900px){
+      .sidebar{ position:fixed; left:0; top:0; right:0; height:64px; display:flex; align-items:center; padding:8px; gap:12px; z-index:1000; }
+      .chat-main{ margin-top:64px; }
+      .sidebar .chats-list, .sidebar .users-list, .sidebar .search { display:none; }
+      .composer { position:fixed; left:0; right:0; bottom:0; padding:10px; z-index:1000; background:var(--panel); border-top:1px solid rgba(255,255,255,0.03); }
+      .messages { padding-bottom:110px; }
+      .msg-content img.chat-image, .msg-content audio { max-width:100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <img src="{{ me['avatar_url'] or url_for('static', path='icons/default-avatar.png') }}"
+     class="avatar-sm" alt="avatar" width="40" height="40" loading="eager">
+          <div>
+            <div style="font-weight:600">{{ me['username'] }}</div>
+            <!-- email removed for confidentiality -->
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          <a href="{{ url_for('settings') }}" title="Settings" class="icon-btn" style="padding:4px;">
+            <img src="{{ url_for('static', path='icons/sliders.svg') }}" alt="settings" style="width:20px;height:20px;filter:invert(1)">
+          </a>
+          <a class="logout" href="{{ url_for('logout') }}" style="color:var(--accent);text-decoration:none;">Logout</a>
+        </div>
+      </div>
+
+      <div class="search">
+        <form action="{{ url_for('start_chat_by_username') }}" method="POST" class="search-form">
+          <input name="username" placeholder="Find by username..." />
+          <button type="submit">Open</button>
+        </form>
+      </div>
+
+      <div class="chats-list">
+        <h4>Chats</h4>
+        {% for c in chats %}
+          <a class="chat-item {% if c['chat_id'] == chat_id %}active{% endif %}" href="{{ url_for('chat', chat_id=c['chat_id']) }}">
+            {% if c['other_avatar'] %}
+              <img src="{{ c['other_avatar'] }}" class="avatar-xs" alt="avatar" width="36" height="36" loading="eager">
+            {% endif %}
+            <div style="display:inline-block;vertical-align:middle;">
+              <div class="chat-name">{{ c['other_username'] }}</div>
+              <div class="chat-preview">{{ c['last_message'][:40] }}</div>
+            </div>
+            <div class="chat-time">{{ c['last_ts'] or '' }}</div>
+          </a>
+        {% endfor %}
+      </div>
+
+      <div class="users-list">
+        <h4>Users</h4>
+        <ul>
+          {% for u in users %}
+            <li>
+              {% if u['avatar_url'] %}
+                <img src="{{ u['avatar_url'] }}" class="avatar-xs" alt="avatar" width="36" height="36" loading="eager" style="margin-right:6px;">
+              {% endif %}
+              <a href="{{ url_for('start_chat', receiver_id=u['id']) }}">{{ u['username'] }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </aside>
+
+    <!-- CHAT MAIN -->
+    <main class="chat-main">
+      <header class="chat-header">
+        <div class="other-info" id="other-info" style="cursor:pointer;">
+          <strong id="other-username">{{ other['username'] }}</strong>
+          <div id="other-status" class="small" style="color:var(--muted);">offline</div>
+        </div>
+      </header>
+
+      <section class="messages" id="messages" data-last-id="{{ (messages[-1]['id'] if messages|length>0 else 0) }}">
+        {% for m in messages %}
+          <div class="message {% if m['sender_id'] == me['id'] %}from-me{% else %}from-other{% endif %}" data-msg-id="{{ m['id'] }}">
+            <div class="msg-content">
+              <div class="msg-text">
+                {% if m['file_url'] %}
+                  {% if m['file_type'] == 'image' %}
+                    <img src="{{ m['file_url'] }}" class="chat-image" alt="image" data-full="{{ m['file_url'] }}" loading="lazy">
+                    {% if m['message'] and not m['message'].startswith('[file]') %}
+                      <div>{{ m['message'] }}</div>
+                    {% endif %}
+                  {% elif m['file_type'] == 'audio' %}
+                    <audio controls src="{{ m['file_url'] }}"></audio>
+                    {% if m['message'] and not m['message'].startswith('[file]') %}
+                      <div>{{ m['message'] }}</div>
+                    {% endif %}
+                  {% else %}
+                    <a href="{{ m['file_url'] }}" target="_blank" rel="noopener">{{ m['message'] or 'File' }}</a>
+                  {% endif %}
+                {% else %}
+                  {{ m['message'] }}
+                {% endif %}
+              </div>
+              <div class="msg-meta">
+                <span class="msg-sender">{% if m['sender_id'] == me['id'] %}You{% else %}{{ m['username'] }}{% endif %}</span>
+                <span class="msg-time">{{ m['timestamp'] }}</span>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </section>
+
+      <!-- COMPOSER with styled file picker -->
+      <form id="composer" class="composer" onsubmit="return false;">
+        <button type="button" id="btn-emoji" class="icon-btn" title="Emoji" aria-label="emoji">
+          <img src="{{ url_for('static', path='icons/emoji-icon.svg') }}" alt="emoji" />
+        </button>
+
+        <div class="file-input-wrapper">
+          <label class="file-label" for="file_input" title="Attach file">
+            <img src="{{ url_for('static', path='icons/paperclip.svg') }}" style="width:18px;height:18px;filter:invert(1)">
+            <span class="file-name" id="file-name">Attach</span>
+          </label>
+          <input id="file_input" type="file" style="display:none" />
+        </div>
+
+        <input id="message_input" name="message" autocomplete="off" placeholder="Write a message..." required />
+        <button id="send_btn" type="submit">Send</button>
+      </form>
+    </main>
+  </div>
+
+  <!-- EMOJI PANEL -->
+  <div id="emoji_panel" class="emoji-panel" style="display:none;">
+    <button class="emj">😀</button><button class="emj">😂</button><button class="emj">😍</button>
+    <button class="emj">👍</button><button class="emj">🙏</button><button class="emj">🔥</button>
+    <button class="emj">🎉</button><button class="emj">😢</button><button class="emj">🤖</button>
+  </div>
+
+  <!-- PROFILE PANEL -->
+  <div id="profile_panel" role="dialog" aria-hidden="true">
+    <img id="profile_avatar" src="{{ other['avatar_url'] or url_for('static', path='icons/default-avatar.png') }}"
+     class="avatar-lg" alt="avatar" width="80" height="80" loading="eager">
+    <div class="username" id="profile_username">{{ other['username'] }}</div>
+    <div class="status" id="profile_status">offline</div>
+    <div style="margin-top:10px;">
+      <a href="#" class="action-btn">View Media</a>
+      <a href="#" class="action-btn" style="background:#d9534f">Report</a>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div id="lightbox" onclick="hideLightbox()">
+    <div class="close" onclick="hideLightbox(); event.stopPropagation();">✕</div>
+    <img id="lightbox-img" src="" alt="preview">
+  </div>
+
+  <!-- Sounds -->
+  <audio id="snd-send" src="{{ url_for('static', path='sounds/message_send.wav') }}" preload="auto"></audio>
+  <audio id="snd-recv" src="{{ url_for('static', path='sounds/message_received.wav') }}" preload="auto"></audio>
+
+<script>
+  // ====== Константи (залишити як у шаблоні) ======
+  const ME_ID = {{ me['id'] }};
+  const CHAT_ID = {{ chat_id }};
+  const OTHER_ID = {{ other['id'] }};
+  let lastId = parseInt(document.getElementById('messages').dataset.lastId || 0);
+
+  // У нас потрібен тільки UPLOAD_URL (file upload через HTTP)
+  const UPLOAD_URL = "{{ url_for('upload_file_ajax') }}";
+  const MESSAGES_URL = "{{ url_for('chat_messages', chat_id=chat_id) }}"; // для початкового завантаження / fallback (не обов'язково)
+
+  // DOM refs (як у вашому коді)
+  const messagesEl = document.getElementById('messages');
+  const input = document.getElementById('message_input');
+  const sndSend = document.getElementById('snd-send');
+  const sndRecv = document.getElementById('snd-recv');
+  const btnEmoji = document.getElementById('btn-emoji');
+  const fileInput = document.getElementById('file_input');
+  const emojiPanel = document.getElementById('emoji_panel');
+  const sendBtn = document.getElementById('send_btn');
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const profilePanel = document.getElementById('profile_panel');
+  const otherInfo = document.getElementById('other-info');
+  const otherStatusEl = document.getElementById('other-status');
+  const profileStatus = document.getElementById('profile_status');
+  const fileNameEl = document.getElementById('file-name');
+
+  // ====== appendMessage з вашого коду (злегка адаптовано) ======
+  function appendMessage(obj) {
+    if (!obj || !obj.id) return;
+    if (document.querySelector(`.message[data-msg-id="${obj.id}"]`)) {
+      lastId = Math.max(lastId, obj.id);
+      return;
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = "message " + (obj.sender_id === ME_ID ? "from-me" : "from-other");
+    wrapper.setAttribute('data-msg-id', obj.id);
+
+    const content = document.createElement('div');
+    content.className = 'msg-content';
+    const textDiv = document.createElement('div');
+    textDiv.className = 'msg-text';
+
+    if (obj.file_url) {
+      if (obj.file_type === 'image') {
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = obj.file_url; img.alt = obj.message || 'image'; img.className = 'chat-image'; img.dataset.full = obj.file_url;
+        img.addEventListener('click', (e)=>{ e.stopPropagation(); showLightbox(obj.file_url); });
+        textDiv.appendChild(img);
+        if (obj.message && !obj.message.startsWith('[file]')) { const p = document.createElement('div'); p.textContent = obj.message; textDiv.appendChild(p); }
+      } else if (obj.file_type === 'audio') {
+        const aud = document.createElement('audio'); aud.controls = true; aud.src = obj.file_url; textDiv.appendChild(aud);
+        if (obj.message && !obj.message.startsWith('[file]')) { const p = document.createElement('div'); p.textContent = obj.message; textDiv.appendChild(p); }
+      } else {
+        const a = document.createElement('a'); a.href = obj.file_url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = obj.message || 'File'; textDiv.appendChild(a);
+      }
+    } else {
+      textDiv.textContent = obj.message || '';
+    }
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'msg-meta';
+    metaDiv.innerHTML = `<span class="msg-sender">${obj.sender_id === ME_ID ? 'You' : (obj.username || '')}</span>
+                         <span class="msg-time">${obj.timestamp || ''}</span>`;
+
+    content.appendChild(textDiv); content.appendChild(metaDiv); wrapper.appendChild(content);
+    messagesEl.appendChild(wrapper);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    lastId = Math.max(lastId, obj.id);
+
+    // play sound
+    if (obj.sender_id === ME_ID) {
+      try { sndSend.currentTime = 0; sndSend.play(); } catch(e) {}
+    } else {
+      try { sndRecv.currentTime = 0; sndRecv.play(); } catch(e) {}
+    }
+  }
+
+  // lightbox
+  function showLightbox(src) { lightboxImg.src = src; lightbox.style.display = 'flex'; }
+  function hideLightbox() { lightbox.style.display = 'none'; lightboxImg.src = ''; }
+  document.querySelectorAll('.msg-content img.chat-image').forEach(img=>{
+    img.addEventListener('click', ()=> showLightbox(img.dataset.full || img.src));
+  });
+
+  // ====== WebSocket client ======
+  let ws = null;
+  let reconnectDelay = 500; // ms
+  let maxReconnect = 16000;
+  let wsAlive = false;
+  let typingTimeout = null;
+  let lastTypingSent = false;
+
+  function buildWsUrl() {
+    const protocol = (location.protocol === 'https:') ? 'wss' : 'ws';
+    // same-origin; cookies will be sent automatically
+    return `${protocol}://${location.host}/ws/chat/${CHAT_ID}`;
+  }
+
+  function connectWs() {
+    const url = buildWsUrl();
+    ws = new WebSocket(url);
+
+    ws.addEventListener('open', () => {
+      console.info('WS connected');
+      wsAlive = true;
+      reconnectDelay = 500;
+      // optional: tell server we opened (presence)
+      ws.send(JSON.stringify({type: 'presence', event: 'join', chat_id: CHAT_ID}));
+    });
+
+    ws.addEventListener('message', (ev) => {
+      try {
+        const payload = JSON.parse(ev.data);
+        handleWsPayload(payload);
+      } catch (e) {
+        console.warn('WS invalid json', e, ev.data);
+      }
+    });
+
+    ws.addEventListener('close', (ev) => {
+      console.warn('WS closed', ev.code, ev.reason);
+      wsAlive = false;
+      scheduleReconnect();
+    });
+
+    ws.addEventListener('error', (err) => {
+      console.error('WS error', err);
+      try { ws.close(); } catch(_) {}
+    });
+  }
+
+  function scheduleReconnect() {
+    if (reconnectDelay > maxReconnect) reconnectDelay = maxReconnect;
+    setTimeout(()=> {
+      console.info('Reconnecting WS...');
+      connectWs();
+      reconnectDelay = Math.min(maxReconnect, reconnectDelay * 2);
+    }, reconnectDelay);
+  }
+
+  function handleWsPayload(payload) {
+    if (!payload || !payload.type) return;
+    switch(payload.type) {
+      case 'message':
+        // payload.data is the message object
+        appendMessage(payload.data);
+        break;
+      case 'typing':
+        // payload.data = { user_id, typing: true/false }
+        if (payload.data && payload.data.user_id === OTHER_ID) {
+          if (payload.data.typing) {
+            otherStatusEl.textContent = 'typing...'; profileStatus.textContent = 'typing...';
+          } else {
+            otherStatusEl.textContent = 'online'; profileStatus.textContent = 'online';
+          }
+        }
+        break;
+      case 'presence':
+        // payload.data = { user_id, event: 'join'|'leave', last_seen? }
+        if (payload.data && payload.data.user_id === OTHER_ID) {
+          if (payload.data.event === 'join') { otherStatusEl.textContent = 'online'; profileStatus.textContent = 'online'; }
+          else if (payload.data.event === 'leave') { otherStatusEl.textContent = 'last seen ' + (payload.data.last_seen || 'offline'); profileStatus.textContent = otherStatusEl.textContent; }
+        }
+        break;
+      default:
+        console.debug('WS unknown type', payload.type);
+    }
+  }
+
+  // send message via WS (preferred)
+  function sendMessageWS(text) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // fallback: try HTTP POST as in old code
+      return sendMessageHTTP(text);
+    }
+    const packet = { type: 'message', message: text, chat_id: CHAT_ID };
+    ws.send(JSON.stringify(packet));
+    // optimistic local append: server will also broadcast back; you may append now or wait for server
+    // appendMessage({ id: 'local_' + Date.now(), chat_id: CHAT_ID, sender_id: ME_ID, message: text, timestamp: new Date().toISOString(), username: '' });
+  }
+
+  // fallback HTTP send (keeps compatibility)
+  async function sendMessageHTTP(text) {
+    if (!text) return;
+    try {
+      const resp = await fetch("{{ url_for('send_message_ajax') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ chat_id: CHAT_ID, message: text })
+      });
+      if (!resp.ok) { console.error('send error', resp.status); return; }
+      const data = await resp.json();
+      appendMessage(data);
+    } catch (e) { console.error('send exception', e); }
+  }
+
+  // ====== typing handler (sends via WS) ======
+  function setTyping(isTyping) {
+    if (isTyping) {
+      if (typingTimeout) { clearTimeout(typingTimeout); }
+      typingTimeout = setTimeout(()=> setTyping(false), 2000);
+      if (!lastTypingSent) {
+        lastTypingSent = true;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'typing', chat_id: CHAT_ID, typing: true }));
+        } else {
+          // optional fallback to HTTP
+          fetch('/set_typing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({chat_id: CHAT_ID, typing: true}) }).catch(()=>{});
+        }
+      }
+    } else {
+      if (typingTimeout) { clearTimeout(typingTimeout); typingTimeout = null; }
+      if (lastTypingSent) {
+        lastTypingSent = false;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'typing', chat_id: CHAT_ID, typing: false }));
+        } else {
+          fetch('/set_typing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({chat_id: CHAT_ID, typing: false}) }).catch(()=>{});
+        }
+      }
+    }
+  }
+
+  // ====== wire UI events to WS ======
+  sendBtn.addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    sendMessageWS(text);
+    input.value = ''; input.focus();
+    setTyping(false);
+  });
+
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
+    else { setTyping(true); } // user typing
+  });
+
+  // file uploads: still via HTTP; server broadcasts message via WS on save
+  fileInput.addEventListener('change', async (ev) => {
+    const files = ev.target.files;
+    if (!files || files.length === 0) { fileNameEl.textContent = 'Attach'; return; }
+    const f = files[0];
+    fileNameEl.textContent = f.name;
+    const form = new FormData();
+    form.append('file', f); form.append('chat_id', CHAT_ID);
+    try {
+      const resp = await fetch(UPLOAD_URL, { method: 'POST', body: form });
+      if (!resp.ok) { console.error('upload failed', resp.status); return; }
+      // server will broadcast via WS; if not, append returned data:
+      const data = await resp.json();
+      // appendMessage(data); // optional: server should broadcast and you'd get it via WS
+    } catch (e) { console.error('upload exception', e); }
+    fileInput.value = ''; fileNameEl.textContent = 'Attach';
+  });
+
+  // ====== initial fallback load (optional) ======
+  // if you want to load messages via HTTP on first open (in case WS missed)
+  async function loadInitialMessages() {
+    try {
+      const resp = await fetch(MESSAGES_URL + '?last_id=' + (lastId || 0));
+      if (resp.ok) {
+        const items = await resp.json();
+        for (const it of items) appendMessage(it);
+      }
+    } catch (e) { console.warn('initial load failed', e); }
+  }
+
+  // ====== start ======
+  connectWs();
+  // optionally load initial messages once (if you don't rely on server to push all)
+  // loadInitialMessages();
+
+  // reconnect on page visibility change (nice-to-have)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (!ws || ws.readyState !== WebSocket.OPEN)) {
+      connectWs();
+    }
+  });
+
+  // profile panel / emoji logic left intact (as in your code)
+  btnEmoji.addEventListener('click', (e) => {
+    e.preventDefault();
+    emojiPanel.style.display = emojiPanel.style.display === 'none' ? 'flex' : 'none';
+  });
+  emojiPanel.addEventListener('click', (e) => {
+    if (!e.target.classList.contains('emj')) return;
+    const emoji = e.target.textContent;
+    const pos = input.selectionStart || input.value.length;
+    const before = input.value.slice(0, pos);
+    const after = input.value.slice(pos);
+    input.value = before + emoji + after;
+    input.setSelectionRange(before.length + emoji.length, before.length + emoji.length);
+    input.focus();
+    emojiPanel.style.display = 'none';
+  });
+
+  // profile panel toggle (unchanged)
+  otherInfo.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profilePanel.style.display = profilePanel.style.display === 'none' || profilePanel.style.display === '' ? 'block' : 'none';
+  });
+  document.addEventListener('click', (e) => {
+    if (!profilePanel.contains(e.target) && e.target !== otherInfo) profilePanel.style.display = 'none';
+  });
+
+  // Unlock audio as before
+  function unlockAudioOnce() {
+    try {
+      sndSend.play().then(()=>sndSend.pause()).catch(()=>{});
+      sndRecv.play().then(()=>sndRecv.pause()).catch(()=>{});
+    } catch(e){}
+    document.removeEventListener('click', unlockAudioOnce);
+  }
+  document.addEventListener('click', unlockAudioOnce);
+
+  // close lightbox
+  function hideLightboxLocal(){ hideLightbox(); } // reuse existing function
+</script>
+</body>
+</html>

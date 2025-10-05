@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elink</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="me">
+          <strong>{{ me['username'] }}</strong>
+          <div class="email">{{ me['email'] }}</div>
+        </div>
+        <a class="logout" href="{{ url_for('logout') }}">Logout</a>
+      </div>
+
+      <div class="search">
+        <form action="{{ url_for('start_chat_by_username') }}" method="POST" class="search-form">
+          <input name="username" placeholder="Find by username..." />
+          <button type="submit">Submit</button>
+        </form>
+      </div>
+
+      <div class="chats-list">
+        <h4>Chats</h4>
+        {% if chats %}
+          {% for c in chats %}
+            <a class="chat-item" href="{{ url_for('chat', chat_id=c['chat_id']) }}">
+              <div class="chat-meta">
+                <div class="chat-name">{{ c['other_username'] }}</div>
+                <div class="chat-preview">{{ c['last_message'][:40] }}</div>
+              </div>
+              <div class="chat-time">{{ c['last_ts'] or '' }}</div>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty">No chats yet</div>
+        {% endif %}
+      </div>
+
+      <div class="users-list">
+        <h4>Users</h4>
+        <ul>
+          {% for u in users %}
+            <li>
+              <a href="{{ url_for('start_chat', receiver_id=u['id']) }}">{{ u['username'] }} <span class="small">({{ u['email'] }})</span></a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </aside>
+
+    <main class="main-empty">
+      <div class="empty-state">
+        <h2>Select the interlocutor on the left or search by username</h2>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
