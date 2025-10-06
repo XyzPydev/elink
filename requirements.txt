@@ -1,4 +1,6 @@
 fastapi
-uvicorn
-itsdangerous
-
+uvicorn[standard]
+starlette
+itsdangerous>=2.1.2
+pyngrok  # optional
+jinja2
