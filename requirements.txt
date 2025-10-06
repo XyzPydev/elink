@@ -4,3 +4,4 @@ starlette
 itsdangerous>=2.1.2
 pyngrok  # optional
 jinja2
+python-multipart
