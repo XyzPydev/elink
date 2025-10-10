@@ -5,11 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chat — {{ other['username'] }}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
-
   <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
-
   <style>
-    /* Local styles: emoji, buttons, lightbox, file-picker, profile panel */
     .icon-btn { background:transparent; border:0; padding:6px; margin-right:6px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
     .icon-btn img { width:20px; height:20px; opacity:0.95; display:block; }
 
@@ -17,7 +14,6 @@
     .emoji-panel button { background:transparent; border:0; padding:6px; font-size:20px; cursor:pointer; color:var(--text); }
     @media (max-width:900px){ .emoji-panel{ left:14px; bottom:120px; } }
 
-    /* file picker styling */
     .file-input-wrapper { display:inline-flex; align-items:center; gap:8px; }
     .file-label {
       display:inline-flex; align-items:center; gap:8px;
@@ -27,7 +23,6 @@
     .file-label:hover { background:rgba(255,255,255,0.04); }
     .file-name { font-size:13px; color:var(--muted); margin-left:6px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-    /* profile panel (slide-in) */
     #profile_panel {
       position:fixed; left:12px; top:80px; width:280px; background:var(--panel); border-radius:12px; box-shadow:0 8px 40px rgba(0,0,0,0.6);
       padding:14px; z-index:2500; display:none;
@@ -37,17 +32,17 @@
     #profile_panel .status { font-size:13px; color:var(--muted); margin-bottom:8px; }
     #profile_panel .action-btn { display:inline-block; padding:8px 10px; border-radius:8px; background:var(--accent); color:#fff; text-decoration:none; margin-right:8px; }
 
-    /* lightbox */
     #lightbox{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); z-index:3000; }
     #lightbox img{ max-width:90%; max-height:90%; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.8); }
     #lightbox .close{ position:absolute; top:18px; right:18px; color:#fff; font-size:28px; cursor:pointer; background:rgba(0,0,0,0.3); border-radius:6px; padding:6px 10px; }
 
-    /* chat-list avatar */
     .chat-item .avatar-xs { width:36px; height:36px; border-radius:8px; object-fit:cover; margin-right:10px; display:inline-block; vertical-align:middle; }
 
-    /* message media previews */
     .msg-content img.chat-image { max-width:60%; border-radius:8px; display:block; margin-bottom:6px; cursor:pointer; }
     .msg-content audio { display:block; margin-bottom:6px; width:100%; max-width:60%; }
+
+    .verified-icon { width:16px; height:16px; vertical-align:middle; margin-left:6px; display:inline-block; }
+    .verified-icon-inline { width:14px; height:14px; vertical-align:middle; margin-left:6px; display:inline-block; }
 
     @media (max-width:900px){
       .sidebar{ position:fixed; left:0; top:0; right:0; height:64px; display:flex; align-items:center; padding:8px; gap:12px; z-index:1000; }
@@ -65,11 +60,15 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <img src="{{ me['avatar_url'] or url_for('static', path='icons/default-avatar.png') }}"
-     class="avatar-sm" alt="avatar" width="40" height="40" loading="eager">
+          <img src="{{ me['avatar_url']|default(url_for('static', path='icons/default-avatar.png')) }}"
+            class="avatar-sm" alt="avatar" width="40" height="40" loading="eager">
           <div>
-            <div style="font-weight:600">{{ me['username'] }}</div>
-            <!-- email removed for confidentiality -->
+            <div style="font-weight:600">
+              {{ me['username'] }}
+              {% if me['is_verified']|default(0)|int == 1 %}
+                <img src="{{ url_for('static', path='icons/verified.png') }}" class="verified-icon" alt="verified" title="Verified email">
+              {% endif %}
+            </div>
           </div>
         </div>
 
@@ -92,11 +91,16 @@
         <h4>Chats</h4>
         {% for c in chats %}
           <a class="chat-item {% if c['chat_id'] == chat_id %}active{% endif %}" href="{{ url_for('chat', chat_id=c['chat_id']) }}">
-            {% if c['other_avatar'] %}
+            {% if c['other_avatar']|default('') %}
               <img src="{{ c['other_avatar'] }}" class="avatar-xs" alt="avatar" width="36" height="36" loading="eager">
             {% endif %}
             <div style="display:inline-block;vertical-align:middle;">
-              <div class="chat-name">{{ c['other_username'] }}</div>
+              <div class="chat-name">
+                {{ c['other_username'] }}
+                {% if c['other_is_verified']|default(0)|int == 1 %}
+                  <img src="{{ url_for('static', path='icons/verified.png') }}" class="verified-icon" alt="verified" title="Verified email">
+                {% endif %}
+              </div>
               <div class="chat-preview">{{ c['last_message'][:40] }}</div>
             </div>
             <div class="chat-time">{{ c['last_ts'] or '' }}</div>
@@ -109,10 +113,15 @@
         <ul>
           {% for u in users %}
             <li>
-              {% if u['avatar_url'] %}
+              {% if u['avatar_url']|default('') %}
                 <img src="{{ u['avatar_url'] }}" class="avatar-xs" alt="avatar" width="36" height="36" loading="eager" style="margin-right:6px;">
               {% endif %}
-              <a href="{{ url_for('start_chat', receiver_id=u['id']) }}">{{ u['username'] }}</a>
+              <a href="{{ url_for('start_chat', receiver_id=u['id']) }}">
+                {{ u['username'] }}
+                {% if u['is_verified']|default(0)|int == 1 %}
+                  <img src="{{ url_for('static', path='icons/verified.png') }}" class="verified-icon" alt="verified" title="Verified email">
+                {% endif %}
+              </a>
             </li>
           {% endfor %}
         </ul>
@@ -123,7 +132,12 @@
     <main class="chat-main">
       <header class="chat-header">
         <div class="other-info" id="other-info" style="cursor:pointer;">
-          <strong id="other-username">{{ other['username'] }}</strong>
+          <strong id="other-username">
+            {{ other['username'] }}
+            {% if other['is_verified']|default(0)|int == 1 %}
+              <img src="{{ url_for('static', path='icons/verified.png') }}" class="verified-icon" alt="verified" title="Verified email">
+            {% endif %}
+          </strong>
           <div id="other-status" class="small" style="color:var(--muted);">offline</div>
         </div>
       </header>
@@ -152,7 +166,19 @@
                 {% endif %}
               </div>
               <div class="msg-meta">
-                <span class="msg-sender">{% if m['sender_id'] == me['id'] %}You{% else %}{{ m['username'] }}{% endif %}</span>
+                <span class="msg-sender">
+                  {% if m['sender_id'] == me['id'] %}
+                    You
+                    {% if m['is_verified']|default(0)|int == 1 %}
+                      <img src="{{ url_for('static', path='icons/verified.png') }}" class="verified-icon-inline" alt="verified" title="Verified email">
+                    {% endif %}
+                  {% else %}
+                    {{ m['username'] }}
+                    {% if m['is_verified']|default(0)|int == 1 %}
+                      <img src="{{ url_for('static', path='icons/verified.png') }}" class="verified-icon-inline" alt="verified" title="Verified email">
+                    {% endif %}
+                  {% endif %}
+                </span>
                 <span class="msg-time">{{ m['timestamp'] }}</span>
               </div>
             </div>
@@ -160,7 +186,7 @@
         {% endfor %}
       </section>
 
-      <!-- COMPOSER with styled file picker -->
+      <!-- COMPOSER -->
       <form id="composer" class="composer" onsubmit="return false;">
         <button type="button" id="btn-emoji" class="icon-btn" title="Emoji" aria-label="emoji">
           <img src="{{ url_for('static', path='icons/emoji-icon.svg') }}" alt="emoji" />
@@ -189,7 +215,7 @@
 
   <!-- PROFILE PANEL -->
   <div id="profile_panel" role="dialog" aria-hidden="true">
-    <img id="profile_avatar" src="{{ other['avatar_url'] or url_for('static', path='icons/default-avatar.png') }}"
+    <img id="profile_avatar" src="{{ other['avatar_url']|default(url_for('static', path='icons/default-avatar.png')) }}"
      class="avatar-lg" alt="avatar" width="80" height="80" loading="eager">
     <div class="username" id="profile_username">{{ other['username'] }}</div>
     <div class="status" id="profile_status">offline</div>
@@ -210,17 +236,15 @@
   <audio id="snd-recv" src="{{ url_for('static', path='sounds/message_received.wav') }}" preload="auto"></audio>
 
 <script>
-  // ====== Константи (залишити як у шаблоні) ======
   const ME_ID = {{ me['id'] }};
   const CHAT_ID = {{ chat_id }};
   const OTHER_ID = {{ other['id'] }};
+  const VERIFIED_ICON = "{{ url_for('static', path='icons/verified.png') }}";
   let lastId = parseInt(document.getElementById('messages').dataset.lastId || 0);
 
-  // У нас потрібен тільки UPLOAD_URL (file upload через HTTP)
   const UPLOAD_URL = "{{ url_for('upload_file_ajax') }}";
-  const MESSAGES_URL = "{{ url_for('chat_messages', chat_id=chat_id) }}"; // для початкового завантаження / fallback (не обов'язково)
+  const MESSAGES_URL = "{{ url_for('chat_messages', chat_id=chat_id) }}";
 
-  // DOM refs (як у вашому коді)
   const messagesEl = document.getElementById('messages');
   const input = document.getElementById('message_input');
   const sndSend = document.getElementById('snd-send');
@@ -237,7 +261,6 @@
   const profileStatus = document.getElementById('profile_status');
   const fileNameEl = document.getElementById('file-name');
 
-  // ====== appendMessage з вашого коду (злегка адаптовано) ======
   function appendMessage(obj) {
     if (!obj || !obj.id) return;
     if (document.querySelector(`.message[data-msg-id="${obj.id}"]`)) {
@@ -273,15 +296,34 @@
 
     const metaDiv = document.createElement('div');
     metaDiv.className = 'msg-meta';
-    metaDiv.innerHTML = `<span class="msg-sender">${obj.sender_id === ME_ID ? 'You' : (obj.username || '')}</span>
-                         <span class="msg-time">${obj.timestamp || ''}</span>`;
+
+    // robust is_verified check
+    const isVerified = (typeof obj.is_verified !== 'undefined') && (
+      obj.is_verified === 1 || obj.is_verified === true || obj.is_verified === '1' || obj.is_verified === 'true'
+    );
+
+    let senderLabel = '';
+    if (obj.sender_id === ME_ID) {
+      senderLabel = 'You';
+      if (isVerified) {
+        senderLabel += ' <img src="' + VERIFIED_ICON + '" class="verified-icon-inline" alt="verified" title="Verified email">';
+      }
+    } else {
+      senderLabel = obj.username || '';
+      if (isVerified) {
+        senderLabel += ' <img src="' + VERIFIED_ICON + '" class="verified-icon-inline" alt="verified" title="Verified email">';
+      }
+    }
+
+    const timeLabel = obj.timestamp || '';
+    metaDiv.innerHTML = `<span class="msg-sender">${senderLabel}</span>
+                         <span class="msg-time">${timeLabel}</span>`;
 
     content.appendChild(textDiv); content.appendChild(metaDiv); wrapper.appendChild(content);
     messagesEl.appendChild(wrapper);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     lastId = Math.max(lastId, obj.id);
 
-    // play sound
     if (obj.sender_id === ME_ID) {
       try { sndSend.currentTime = 0; sndSend.play(); } catch(e) {}
     } else {
@@ -289,16 +331,14 @@
     }
   }
 
-  // lightbox
   function showLightbox(src) { lightboxImg.src = src; lightbox.style.display = 'flex'; }
   function hideLightbox() { lightbox.style.display = 'none'; lightboxImg.src = ''; }
   document.querySelectorAll('.msg-content img.chat-image').forEach(img=>{
     img.addEventListener('click', ()=> showLightbox(img.dataset.full || img.src));
   });
 
-  // ====== WebSocket client ======
   let ws = null;
-  let reconnectDelay = 500; // ms
+  let reconnectDelay = 500;
   let maxReconnect = 16000;
   let wsAlive = false;
   let typingTimeout = null;
@@ -306,7 +346,6 @@
 
   function buildWsUrl() {
     const protocol = (location.protocol === 'https:') ? 'wss' : 'ws';
-    // same-origin; cookies will be sent automatically
     return `${protocol}://${location.host}/ws/chat/${CHAT_ID}`;
   }
 
@@ -318,8 +357,7 @@
       console.info('WS connected');
       wsAlive = true;
       reconnectDelay = 500;
-      // optional: tell server we opened (presence)
-      ws.send(JSON.stringify({type: 'presence', event: 'join', chat_id: CHAT_ID}));
+      try { ws.send(JSON.stringify({type: 'presence', event: 'join', chat_id: CHAT_ID})); } catch(e) {}
     });
 
     ws.addEventListener('message', (ev) => {
@@ -356,11 +394,9 @@
     if (!payload || !payload.type) return;
     switch(payload.type) {
       case 'message':
-        // payload.data is the message object
         appendMessage(payload.data);
         break;
       case 'typing':
-        // payload.data = { user_id, typing: true/false }
         if (payload.data && payload.data.user_id === OTHER_ID) {
           if (payload.data.typing) {
             otherStatusEl.textContent = 'typing...'; profileStatus.textContent = 'typing...';
@@ -370,7 +406,6 @@
         }
         break;
       case 'presence':
-        // payload.data = { user_id, event: 'join'|'leave', last_seen? }
         if (payload.data && payload.data.user_id === OTHER_ID) {
           if (payload.data.event === 'join') { otherStatusEl.textContent = 'online'; profileStatus.textContent = 'online'; }
           else if (payload.data.event === 'leave') { otherStatusEl.textContent = 'last seen ' + (payload.data.last_seen || 'offline'); profileStatus.textContent = otherStatusEl.textContent; }
@@ -381,19 +416,14 @@
     }
   }
 
-  // send message via WS (preferred)
   function sendMessageWS(text) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // fallback: try HTTP POST as in old code
       return sendMessageHTTP(text);
     }
     const packet = { type: 'message', message: text, chat_id: CHAT_ID };
     ws.send(JSON.stringify(packet));
-    // optimistic local append: server will also broadcast back; you may append now or wait for server
-    // appendMessage({ id: 'local_' + Date.now(), chat_id: CHAT_ID, sender_id: ME_ID, message: text, timestamp: new Date().toISOString(), username: '' });
   }
 
-  // fallback HTTP send (keeps compatibility)
   async function sendMessageHTTP(text) {
     if (!text) return;
     try {
@@ -408,7 +438,6 @@
     } catch (e) { console.error('send exception', e); }
   }
 
-  // ====== typing handler (sends via WS) ======
   function setTyping(isTyping) {
     if (isTyping) {
       if (typingTimeout) { clearTimeout(typingTimeout); }
@@ -418,7 +447,6 @@
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'typing', chat_id: CHAT_ID, typing: true }));
         } else {
-          // optional fallback to HTTP
           fetch('/set_typing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({chat_id: CHAT_ID, typing: true}) }).catch(()=>{});
         }
       }
@@ -435,7 +463,6 @@
     }
   }
 
-  // ====== wire UI events to WS ======
   sendBtn.addEventListener('click', async (ev) => {
     ev.preventDefault();
     const text = input.value.trim();
@@ -447,10 +474,9 @@
 
   input.addEventListener('keydown', function(e){
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
-    else { setTyping(true); } // user typing
+    else { setTyping(true); }
   });
 
-  // file uploads: still via HTTP; server broadcasts message via WS on save
   fileInput.addEventListener('change', async (ev) => {
     const files = ev.target.files;
     if (!files || files.length === 0) { fileNameEl.textContent = 'Attach'; return; }
@@ -461,15 +487,11 @@
     try {
       const resp = await fetch(UPLOAD_URL, { method: 'POST', body: form });
       if (!resp.ok) { console.error('upload failed', resp.status); return; }
-      // server will broadcast via WS; if not, append returned data:
       const data = await resp.json();
-      // appendMessage(data); // optional: server should broadcast and you'd get it via WS
     } catch (e) { console.error('upload exception', e); }
     fileInput.value = ''; fileNameEl.textContent = 'Attach';
   });
 
-  // ====== initial fallback load (optional) ======
-  // if you want to load messages via HTTP on first open (in case WS missed)
   async function loadInitialMessages() {
     try {
       const resp = await fetch(MESSAGES_URL + '?last_id=' + (lastId || 0));
@@ -480,19 +502,14 @@
     } catch (e) { console.warn('initial load failed', e); }
   }
 
-  // ====== start ======
   connectWs();
-  // optionally load initial messages once (if you don't rely on server to push all)
-  // loadInitialMessages();
 
-  // reconnect on page visibility change (nice-to-have)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && (!ws || ws.readyState !== WebSocket.OPEN)) {
       connectWs();
     }
   });
 
-  // profile panel / emoji logic left intact (as in your code)
   btnEmoji.addEventListener('click', (e) => {
     e.preventDefault();
     emojiPanel.style.display = emojiPanel.style.display === 'none' ? 'flex' : 'none';
@@ -509,7 +526,6 @@
     emojiPanel.style.display = 'none';
   });
 
-  // profile panel toggle (unchanged)
   otherInfo.addEventListener('click', (e) => {
     e.stopPropagation();
     profilePanel.style.display = profilePanel.style.display === 'none' || profilePanel.style.display === '' ? 'block' : 'none';
@@ -518,7 +534,6 @@
     if (!profilePanel.contains(e.target) && e.target !== otherInfo) profilePanel.style.display = 'none';
   });
 
-  // Unlock audio as before
   function unlockAudioOnce() {
     try {
       sndSend.play().then(()=>sndSend.pause()).catch(()=>{});
@@ -528,8 +543,7 @@
   }
   document.addEventListener('click', unlockAudioOnce);
 
-  // close lightbox
-  function hideLightboxLocal(){ hideLightbox(); } // reuse existing function
+  function hideLightboxLocal(){ hideLightbox(); }
 </script>
 </body>
 </html>

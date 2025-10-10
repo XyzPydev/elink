@@ -1,23 +1,112 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Вхід</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+  <style>
+    .chat-container { min-height:100vh; display:grid; place-items:center; padding:20px; }
+    .auth-card { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:28px; width:420px; max-width:96%; box-sizing:border-box; }
+    .chat-header { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; margin-bottom:14px; }
+    .auth-form { display:flex; flex-direction:column; align-items:center; width:100%; gap:12px; }
+    .input-group { position:relative; width:100%; max-width:360px; }
+    .auth-form input[type="email"], .auth-form input[type="password"] { width:100%; box-sizing:border-box; }
+    .input-group label { left:14px; }
+    .auth-actions { display:flex; justify-content:center; gap:12px; width:100%; max-width:360px; }
+    @media (max-width:480px) { .auth-card { padding:18px; width:94%; } .auth-actions{ flex-direction:column-reverse; } .btn{ width:100% } }
+  </style>
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <h2>Login</h2>
+  <div class="chat-container">
+    <div class="auth-card" id="auth_card_login" style="position:relative;">
+      <div class="chat-header">
+        <h2>Увійти</h2>
+        <div class="small-note">Введіть свої дані, щоб продовжити</div>
+      </div>
+
+      <form class="auth-form" id="loginForm" method="POST" novalidate>
+        <div class="input-group" data-name="email">
+          <input id="email_login" name="email" type="email" required autocomplete="email" />
+          <label for="email_login">Email</label>
+          <div class="input-error" id="emailLoginError" style="display:none"></div>
         </div>
-        <form method="POST">
-            <input type="email" name="email" placeholder="Email" required>
-            <input type="password" name="password" placeholder="Пароль" required>
-            <button type="submit">Login</button>
-        </form>
-        <p>Don't have an account yet? <a href="{{ url_for('register') }}">Register</a></p>
+
+        <div class="input-group" data-name="password">
+          <input id="password_login" name="password" type="password" required autocomplete="current-password" />
+          <label for="password_login">Пароль</label>
+          <div class="input-error" id="passwordLoginError" style="display:none"></div>
+        </div>
+
+        <div class="auth-actions">
+          <button class="btn" type="submit" id="loginBtn" aria-live="polite">
+            <span class="spinner" style="display:none" aria-hidden="true"></span>
+            <span class="btn-text">Увійти</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="auth-footer" style="margin-top:12px; text-align:center; width:100%; max-width:360px;">
+        <a href="{{ url_for('register') }}" style="color:var(--muted); text-decoration:none;">Не маєте аккаунту? Зареєструватись</a>
+      </div>
+
+      <div id="loginSuccess" class="auth-success" style="display:none; pointer-events:none;">
+        <div class="checkmark" role="img" aria-label="Успіх">
+          <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 27 L22 34 L38 16" stroke-dasharray="100" stroke-dashoffset="100" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('#loginForm .input-group input').forEach(input => {
+      const group = input.parentElement;
+      const update = () => { if (input.value.trim().length) group.classList.add('has-value'); else group.classList.remove('has-value'); };
+      input.addEventListener('input', update);
+      input.addEventListener('blur', update);
+      update();
+    });
+
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginSpinner = loginBtn.querySelector('.spinner');
+    const loginOverlay = document.getElementById('loginSuccess');
+
+    function setLoginError(id, msg) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (!msg) { el.style.display='none'; el.textContent=''; return; }
+      el.style.display='block'; el.textContent=msg;
+    }
+
+    loginForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      setLoginError('emailLoginError',''); setLoginError('passwordLoginError','');
+
+      const email = loginForm.email.value.trim();
+      const password = loginForm.password.value;
+
+      let ok = true;
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setLoginError('emailLoginError', 'Введіть валідний email'); loginForm.querySelector("[data-name='email']").classList.add('invalid'); ok=false; } else loginForm.querySelector("[data-name='email']").classList.remove('invalid');
+      if (!password) { setLoginError('passwordLoginError', 'Введіть пароль'); loginForm.querySelector("[data-name='password']").classList.add('invalid'); ok=false; } else loginForm.querySelector("[data-name='password']").classList.remove('invalid');
+
+      if (!ok) return;
+
+      loginForm.classList.add('submitting');
+      loginSpinner.style.display = 'inline-block';
+
+      setTimeout(() => {
+        loginOverlay.style.display = 'flex';
+        const path = loginOverlay.querySelector('path');
+        if (path) path.style.animation = 'draw 480ms ease forwards';
+        setTimeout(() => loginForm.submit(), 600);
+      }, 450);
+    });
+  </script>
+
+  <style>@keyframes draw { to { stroke-dashoffset: 0; } }</style>
 </body>
 </html>

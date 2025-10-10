@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Підтвердження email</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  <style>
+    /* невеликі локальні правки, щоб вигляд відповідав auth-карті */
+    .verify-card { min-height: 60vh; display:grid; place-items:center; padding:24px; }
+    .verify-box { width:420px; max-width:96%; padding:22px; border-radius:12px; background:var(--panel); border:1px solid rgba(255,255,255,0.03); text-align:center; }
+    .verify-box input { width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text); margin-top:12px; }
+    .tiny { font-size:13px; color:var(--muted); margin-top:8px; }
+    .link-btn { background:transparent; border:0; color:var(--accent); cursor:pointer; text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <div class="verify-card">
+    <div class="verify-box">
+      <h2>Підтвердження Email</h2>
+      <p class="tiny">Ми надіслали код на: <strong>{{ email }}</strong></p>
+      {% if sent == '0' %}
+        <p class="tiny" style="color:#ffbaba">Не вдалося надіслати лист — спробуйте ще раз.</p>
+      {% elif sent == '1' %}
+        <p class="tiny">Лист успішно надіслано — перевірте пошту.</p>
+      {% endif %}
+
+      <form id="verifyForm" method="POST" style="margin-top:10px;">
+        <input type="hidden" name="email" value="{{ email }}">
+        <input name="code" placeholder="Введіть код" required autofocus>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;">
+          <button class="btn" type="submit">Підтвердити</button>
+          <button type="button" id="resendBtn" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--accent)">Відправити знову</button>
+        </div>
+        <p id="msg" class="tiny" style="margin-top:10px"></p>
+      </form>
+
+      <p class="tiny" style="margin-top:14px">Якщо лист не прийшов — перевірте папку <em>Спам</em>.</p>
+      <p style="margin-top:8px"><a href="{{ url_for('login') }}" style="color:var(--muted);text-decoration:none">Повернутися до входу</a></p>
+    </div>
+  </div>
+
+  <script>
+    const verifyForm = document.getElementById('verifyForm');
+    const resendBtn = document.getElementById('resendBtn');
+    const msg = document.getElementById('msg');
+
+    verifyForm.addEventListener('submit', function(e){
+      // default submit will call /verify POST — let server handle responses and redirects
+    });
+
+    resendBtn.addEventListener('click', function(){
+      msg.textContent = "Надсилаємо...";
+      const formData = new FormData();
+      formData.append('email', "{{ email }}");
+      fetch("/resend_verification", { method: "POST", body: formData })
+        .then(r => r.json().then(j => ({ok: r.ok, status: r.status, json: j})))
+        .then(res => {
+          if (!res.ok) {
+            if (res.status === 429) msg.textContent = "Зачекайте трохи перед повторною відправкою.";
+            else msg.textContent = res.json && res.json.error ? res.json.error : "Помилка при відправці.";
+          } else {
+            msg.textContent = "Код надіслано знову — перевірте пошту.";
+          }
+        }).catch(err => {
+          msg.textContent = "Помилка мережі. Спробуйте пізніше.";
+        });
+    });
+  </script>
+</body>
+</html>

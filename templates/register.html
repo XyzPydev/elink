@@ -1,24 +1,150 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registration</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Реєстрація</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='icons/favicon.png') }}">
+  <!-- Inline overrides to force centering (these will beat external rules) -->
+  <style>
+    /* Center the whole page */
+    .chat-container { min-height:100vh; display:grid; place-items:center; padding:20px; }
+
+    /* Card centered content */
+    .auth-card { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:28px; width:420px; max-width:96%; box-sizing:border-box; }
+
+    /* header centered */
+    .chat-header { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; margin-bottom:14px; }
+
+    /* make the form elements centered and constrained */
+    .auth-form { display:flex; flex-direction:column; align-items:center; width:100%; gap:12px; }
+
+    /* input groups should be full width up to a max so label positions work */
+    .input-group { position:relative; width:100%; max-width:360px; }
+
+    /* inputs fill the input-group */
+    .auth-form input[type="email"],
+    .auth-form input[type="text"],
+    .auth-form input[type="password"] { width:100%; box-sizing:border-box; }
+
+    /* floating label tweak to align visually inside centered box */
+    .input-group label { left:14px; }
+
+    /* center actions */
+    .auth-actions { display:flex; justify-content:center; gap:12px; width:100%; max-width:360px; }
+
+    /* make button full width on small devices */
+    @media (max-width:480px) {
+      .auth-card { padding:18px; width:94%; }
+      .auth-actions { flex-direction:column-reverse; }
+      .btn { width:100%; }
+    }
+  </style>
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <h2>Registration</h2>
+  <div class="chat-container">
+    <div class="auth-card" id="auth_card" style="position:relative;">
+      <div class="chat-header">
+        <h2>Реєстрація</h2>
+        <div class="small-note">Створіть акаунт, щоб почати спілкування</div>
+      </div>
+
+      <form class="auth-form" id="registerForm" method="POST" novalidate>
+        <div class="input-group" data-name="email">
+          <input id="email" name="email" type="email" required autocomplete="email" />
+          <label for="email">Email</label>
+          <div class="input-error" id="emailError" aria-live="polite" style="display:none"></div>
         </div>
-        <form method="POST">
-            <input type="email" name="email" placeholder="Email" required>
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Пароль" required>
-            <button type="submit">Register</button>
-        </form>
-        <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
+
+        <div class="input-group" data-name="username">
+          <input id="username" name="username" type="text" required autocomplete="username" />
+          <label for="username">Ім'я користувача</label>
+          <div class="input-error" id="usernameError" style="display:none"></div>
+        </div>
+
+        <div class="input-group" data-name="password">
+          <input id="password" name="password" type="password" required autocomplete="new-password" />
+          <label for="password">Пароль</label>
+          <div class="input-error" id="passwordError" style="display:none"></div>
+        </div>
+
+        <div class="auth-actions">
+          <button class="btn" type="submit" id="submitBtn" aria-live="polite">
+            <span class="spinner" style="display:none" aria-hidden="true"></span>
+            <span class="btn-text">Зареєструватися</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="auth-footer" style="margin-top:12px; text-align:center; width:100%; max-width:360px;">
+        <a href="{{ url_for('login') }}" style="color:var(--muted); text-decoration:none;">Вже маєте аккаунт? Увійти</a>
+      </div>
+
+      <!-- success overlay -->
+      <div id="successOverlay" class="auth-success" style="display:none; pointer-events:none;">
+        <div class="checkmark" role="img" aria-label="Успіх">
+          <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 27 L22 34 L38 16" stroke-dasharray="100" stroke-dashoffset="100" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <script>
+    // Floating label helper
+    document.querySelectorAll('.input-group input').forEach(input => {
+      const group = input.parentElement;
+      const update = () => {
+        if (input.value.trim().length) group.classList.add('has-value');
+        else group.classList.remove('has-value');
+      };
+      input.addEventListener('input', update);
+      input.addEventListener('blur', update);
+      update();
+    });
+
+    // Validation + submit animation (same as before)
+    const form = document.getElementById('registerForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = submitBtn.querySelector('.spinner');
+    const overlay = document.getElementById('successOverlay');
+
+    function setError(elId, msg) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!msg) { el.style.display='none'; el.textContent=''; return; }
+      el.style.display='block'; el.textContent=msg;
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      setError('emailError',''); setError('usernameError',''); setError('passwordError','');
+
+      const email = form.email.value.trim();
+      const username = form.username.value.trim();
+      const password = form.password.value;
+
+      let ok = true;
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setError('emailError', 'Введіть валідний email'); form.querySelector("[data-name='email']").classList.add('invalid'); ok=false; } else form.querySelector("[data-name='email']").classList.remove('invalid');
+      if (!username || username.length < 3) { setError('usernameError', "Ім'я має бути мінімум 3 символи"); form.querySelector("[data-name='username']").classList.add('invalid'); ok=false; } else form.querySelector("[data-name='username']").classList.remove('invalid');
+      if (!password || password.length < 6) { setError('passwordError', 'Пароль має бути мінімум 6 символів'); form.querySelector("[data-name='password']").classList.add('invalid'); ok=false; } else form.querySelector("[data-name='password']").classList.remove('invalid');
+
+      if (!ok) return;
+
+      form.classList.add('submitting');
+      spinner.style.display = 'inline-block';
+
+      setTimeout(() => {
+        overlay.style.display = 'flex';
+        const path = overlay.querySelector('path');
+        if (path) path.style.animation = 'draw 520ms ease forwards';
+        setTimeout(() => form.submit(), 700);
+      }, 600);
+    });
+  </script>
+
+  <style>@keyframes draw { to { stroke-dashoffset: 0; } }</style>
 </body>
 </html>
