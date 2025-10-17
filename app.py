@@ -21,8 +21,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocketState
 
-TEST_MODE = True # КОЛИ ТЕСТИШ СТАВ TRUE!!!!
-VERIFIED = ["sollamon.gg@gmail.com"]
+TEST_MODE = False
+VERIFIED = ["sollamon.gg@gmail.com", "irinasevruk922@gmail.com", "snezhulya2010@gmail.com"]
 
 # Optional: ngrok
 try:
@@ -711,6 +711,8 @@ def start_chat(request: Request, receiver_id: int):
         return HTMLResponse(content="Не вдалося створити чат", status_code=500)
     return RedirectResponse(url=f"/chat/{chat_id}")
 
+_VERIFIED_SET = set(email.lower() for email in (VERIFIED or []))
+
 @app.get("/chat/{chat_id}", response_class=HTMLResponse, name="chat")
 def chat_page(request: Request, chat_id: int):
     user_id = request.session.get('user_id')
@@ -723,9 +725,7 @@ def chat_page(request: Request, chat_id: int):
         db.close()
         return RedirectResponse(url="/login")
 
-    # перетворимо me в dict і нормалізуємо поля
-    me = _row_to_dict_with_defaults(me_row, defaults={"avatar_url": "", "is_verified": 0})
-    me['is_verified'] = _to_int_flag(me.get('is_verified', 0))
+    me = _row_to_dict_with_defaults(me_row, defaults={"avatar_url": "", "is_verified": 0, "email": ""})
 
     cur = db.execute("SELECT user1_id, user2_id FROM chats WHERE id = ?", (chat_id,))
     chat_row = cur.fetchone()
@@ -736,34 +736,106 @@ def chat_page(request: Request, chat_id: int):
     other_id = chat_row['user1_id'] if chat_row['user1_id'] != me['id'] else chat_row['user2_id']
     other_row = get_user_by_id(db, other_id)
     other = _row_to_dict_with_defaults(other_row or {}, defaults={"avatar_url": "", "is_verified": 0, "username": "Unknown", "email": ""})
-    other['is_verified'] = _to_int_flag(other.get('is_verified', 0))
 
-    # messages: беремо з get_messages (яка вже робить JOIN на users), і нормалізуємо
+    # messages
     raw_messages = get_messages(db, chat_id)
     messages = []
+    sender_ids = set()
     for r in raw_messages:
-        m = _row_to_dict_with_defaults(r, defaults={"file_url": "", "file_type": "", "message": ""})
-        # is_verified в результаті SELECT може бути в полі 'is_verified' з join
-        m['is_verified'] = _to_int_flag(m.get('is_verified', 0))
+        m = _row_to_dict_with_defaults(r, defaults={"file_url": "", "file_type": "", "message": "", "username": "", "email": None})
         messages.append(m)
+        if m.get('sender_id'):
+            try:
+                sender_ids.add(int(m['sender_id']))
+            except Exception:
+                pass
 
-    # chats: використаємо list_user_chats (яка має повертати dict з other_is_verified),
-    # але на всякий випадок нормалізуємо кожен елемент
+    # chats list
     chats_raw = list_user_chats(db, me['id'])
     chats = []
+    chat_other_ids = set()
     for c in chats_raw:
         cc = dict(c)
         cc['other_avatar'] = cc.get('other_avatar') or ''
-        cc['other_is_verified'] = _to_int_flag(cc.get('other_is_verified', 0))
+        oid = cc.get('other_id') or cc.get('other_user_id') or cc.get('other') or cc.get('otherId')
+        if oid:
+            try:
+                chat_other_ids.add(int(oid))
+            except Exception:
+                pass
         chats.append(cc)
 
-    # users (sidebar): вибираємо і нормалізуємо в список dict
-    rows = db.execute("SELECT id, username, email, avatar_url, is_verified FROM users WHERE id != ? ORDER BY username COLLATE NOCASE", (me['id'],)).fetchall()
+    # sidebar users
+    rows = db.execute(
+        "SELECT id, username, email, avatar_url FROM users WHERE id != ? ORDER BY username COLLATE NOCASE",
+        (me['id'],)
+    ).fetchall()
     users = []
+    sidebar_user_ids = set()
     for r in rows:
-        u = _row_to_dict_with_defaults(r, defaults={"avatar_url": "", "is_verified": 0})
-        u['is_verified'] = _to_int_flag(u.get('is_verified', 0))
+        u = _row_to_dict_with_defaults(r, defaults={"avatar_url": "", "email": ""})
         users.append(u)
+        try:
+            sidebar_user_ids.add(int(u['id']))
+        except Exception:
+            pass
+
+    # збираємо всі id для одного запиту
+    all_user_ids = {int(x) for x in {me['id'], other.get('id')} if x}
+    all_user_ids |= sender_ids
+    all_user_ids |= chat_other_ids
+    all_user_ids |= sidebar_user_ids
+
+    id_to_email = {}
+    if all_user_ids:
+        placeholders = ",".join("?" for _ in all_user_ids)
+        q = f"SELECT id, email FROM users WHERE id IN ({placeholders})"
+        rows_em = db.execute(q, tuple(all_user_ids)).fetchall()
+        for rr in rows_em:
+            # sqlite3.Row -> індексований; використовуємо rr['id'] та rr['email']
+            try:
+                rid = int(rr['id'])
+            except Exception:
+                continue
+            email_val = rr['email'] if rr['email'] is not None else ''
+            id_to_email[rid] = email_val.strip().lower()
+
+    def email_is_verified_by_list(email: Optional[str]) -> int:
+        if not email:
+            return 0
+        return 1 if email.strip().lower() in _VERIFIED_SET else 0
+
+    # проставляємо is_verified для me, other, messages, chats, users
+    me['email'] = id_to_email.get(me['id'], (me.get('email') or "").strip().lower())
+    me['is_verified'] = email_is_verified_by_list(me['email'])
+
+    other['email'] = id_to_email.get(other.get('id'), (other.get('email') or "").strip().lower())
+    other['is_verified'] = email_is_verified_by_list(other['email'])
+
+    for m in messages:
+        sender_email = (m.get('email') or id_to_email.get(m.get('sender_id')) or "").strip().lower()
+        m['is_verified'] = email_is_verified_by_list(sender_email)
+        m['file_url'] = m.get('file_url') or ''
+        m['file_type'] = m.get('file_type') or ''
+        m['message'] = m.get('message') or ''
+        m['username'] = m.get('username') or ''
+
+    for cc in chats:
+        oid = cc.get('other_id') or cc.get('other_user_id') or cc.get('other') or cc.get('otherId')
+        try:
+            oid_int = int(oid) if oid else None
+        except Exception:
+            oid_int = None
+        if oid_int:
+            cc_email = id_to_email.get(oid_int, '')
+            cc['other_is_verified'] = email_is_verified_by_list(cc_email)
+        else:
+            cc['other_is_verified'] = 0
+
+    for u in users:
+        u_email = (u.get('email') or id_to_email.get(u['id'], '')).strip().lower()
+        u['is_verified'] = email_is_verified_by_list(u_email)
+        u['avatar_url'] = u.get('avatar_url') or ''
 
     db.close()
     return templates.TemplateResponse("chat.html", {
