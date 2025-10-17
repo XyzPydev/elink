@@ -21,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocketState
 
-TEST_MODE = False
+TEST_MODE = True # КОЛИ ТЕСТИШ СТАВ TRUE!!!!
 VERIFIED = ["sollamon.gg@gmail.com"]
 
 # Optional: ngrok
