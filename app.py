@@ -29,6 +29,7 @@ try:
     from pyngrok import ngrok
 except Exception:
     ngrok = None
+    TEST_MODE = True
 
 # ---------------- CONFIG ----------------
 NGROK_AUTHTOKEN = "2ybZlmGB05cL0RnQqknqqJdRDw3_31eakk3mYCv9n2JaHYGQF"
@@ -180,12 +181,12 @@ Valid for {CODE_EXP_MINUTES} minutes.
             <img src="cid:elink_logo" alt="Elink" style="width:120px; height:auto;" />
           </div>
           <h2 style="margin:0 0 8px 0">Привіт</h2>
-          <p>Ваш код підтвердження:</p>
+          <p>Your verification code: :</p>
           <p style="font-size:26px; font-weight:700; letter-spacing:2px; margin:6px 0; color:#1f6feb;">{code}</p>
-          <p>Дійсний <strong>{CODE_EXP_MINUTES} хвилин</strong>.</p>
-          <p><a href="{link}">Підтвердити email</a></p>
+          <p>Valid <strong>{CODE_EXP_MINUTES} minutes</strong>.</p>
+          <p><a href="{link}">Verify email</a></p>
           <hr/>
-          <p style="font-size:12px; color:#666">Якщо ви не реєструвались — ігноруйте цей лист.</p>
+          <p style="font-size:12px; color:#666">If you didn't registrated - ignore this email.</p>
         </div>
       </body>
     </html>
