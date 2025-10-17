@@ -422,7 +422,6 @@ def index(request: Request):
         db.close()
         return RedirectResponse(url="/login")
     chats = list_user_chats(db, me['id'])
-    # отримуємо додаткові поля avatar_url та is_verified
     cur = db.execute("SELECT id, username, email, avatar_url, is_verified FROM users WHERE id != ? ORDER BY username COLLATE NOCASE", (me['id'],))
     users = cur.fetchall()
     db.close()
@@ -916,7 +915,7 @@ def settings(request: Request):
     db.close()
     return templates.TemplateResponse("settings.html", {"request": request, "me": me})
 
-@app.post("/update_profile")
+@app.post("/update_profile", name="update_profile")
 async def update_profile(request: Request, username: str = Form(None), avatar: Optional[UploadFile] = File(None)):
     user_id = request.session.get('user_id')
     if not user_id:
@@ -947,7 +946,7 @@ async def update_profile(request: Request, username: str = Form(None), avatar: O
         db.execute("UPDATE users SET avatar_url = ? WHERE id = ?", (avatar_url, me_id))
         db.commit()
     db.close()
-    return RedirectResponse("/settings")
+    return RedirectResponse(request.url_for("settings"), status_code=302)
 
 @app.post("/heartbeat")
 def heartbeat(request: Request):
